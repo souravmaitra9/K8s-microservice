@@ -1,0 +1,62 @@
+x-hardening: &hardening
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  user: "65532:65532"
+  healthcheck:
+    test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2)
+    interval: 10s
+    timeout: 3s
+    retries: 5
+    start_period: 5s
+
+services:
+  guardrail:
+    <<: *hardening
+    build: ./services/guardrail
+    image: agent-platform/guardrail:dev
+    environment:
+      ALLOWED_TOOLS: kb_search,ticket_create
+      MAX_BODY_BYTES: "32768"
+      INJECTION_THRESHOLD: "0.8"
+      AGENT_URL: http://agent:8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      agent:
+        condition: service_healthy
+
+  agent:
+    <<: *hardening
+    build: ./services/agent
+    image: agent-platform/agent:dev
+    environment:
+      GUARDRAIL_URL: http://guardrail:8080
+      KB_URL: http://kb:8080
+      TICKETS_URL: http://tickets:8080
+      LLM_BASE_URL: ""
+      LLM_MODEL: local
+      MAX_TOOL_STEPS: "3"
+    depends_on:
+      kb:
+        condition: service_healthy
+      tickets:
+        condition: service_healthy
+
+  kb:
+    <<: *hardening
+    build: ./services/kb
+    image: agent-platform/kb:dev
+
+  tickets:
+    <<: *hardening
+    build: ./services/tickets
+    image: agent-platform/tickets:dev

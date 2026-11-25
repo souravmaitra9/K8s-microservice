@@ -1,0 +1,7 @@
+The public entrypoint is the guardrail. The agent, kb, and tickets services are cluster-internal.
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "agent-platform.fullname" . }}-guardrail 8080:8080
+
+Ingress from other namespaces is denied unless the namespace is labeled {{ .Values.networkPolicy.ingressNamespaceLabel }}=true.
+Metrics scrapes are denied unless the namespace is labeled {{ .Values.networkPolicy.metricsNamespaceLabel }}=true.
+The agent service account does not mount a token and has no RBAC role.

@@ -1,0 +1,99 @@
+{{- range $name, $component := .Values.components }}
+{{- $scaled := and $.Values.hpa.enabled (has $name $.Values.hpa.components) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent-platform.fullname" $ }}-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "agent-platform.labels" (dict "root" $ "name" $name) | nindent 4 }}
+spec:
+  {{- if not $scaled }}
+  replicas: {{ $.Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "agent-platform.selector" (dict "root" $ "name" $name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "agent-platform.labels" (dict "root" $ "name" $name) | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "agent-platform.fullname" $ }}-{{ $name }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: {{ include "agent-platform.image" (dict "root" $ "repository" $component.repository) }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: HOME
+              value: /tmp
+            {{- if eq $name "guardrail" }}
+            - name: ALLOWED_TOOLS
+              value: {{ $.Values.guardrail.allowedTools | quote }}
+            - name: MAX_BODY_BYTES
+              value: {{ $.Values.guardrail.maxBodyBytes | quote }}
+            - name: INJECTION_THRESHOLD
+              value: {{ $.Values.guardrail.injectionThreshold | quote }}
+            - name: AGENT_URL
+              value: http://{{ include "agent-platform.fullname" $ }}-agent:8080
+            {{- else if eq $name "agent" }}
+            - name: GUARDRAIL_URL
+              value: http://{{ include "agent-platform.fullname" $ }}-guardrail:8080
+            - name: KB_URL
+              value: http://{{ include "agent-platform.fullname" $ }}-kb:8080
+            - name: TICKETS_URL
+              value: http://{{ include "agent-platform.fullname" $ }}-tickets:8080
+            - name: LLM_BASE_URL
+              value: {{ $.Values.llm.baseUrl | quote }}
+            - name: LLM_MODEL
+              value: {{ $.Values.llm.model | quote }}
+            - name: MAX_TOOL_STEPS
+              value: {{ $.Values.agent.maxToolSteps | quote }}
+            {{- if $.Values.llm.existingSecret }}
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.llm.existingSecret }}
+                  key: {{ $.Values.llm.secretKey }}
+            {{- end }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            {{- toYaml $component.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Mi
+{{- end }}

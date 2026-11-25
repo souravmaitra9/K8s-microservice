@@ -1,0 +1,67 @@
+groups:
+  - name: agent-platform
+    rules:
+      - alert: AgentHighLatency
+        expr: histogram_quantile(0.95, sum by (le) (rate(agent_request_duration_seconds_bucket[5m]))) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Agent p95 latency is above 5 seconds
+          description: Chat requests are slow. Check the model endpoint and the tool services before raising this threshold.
+
+      - alert: AgentTokenBurn
+        expr: sum(increase(agent_llm_tokens_total[1h])) > 500000
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Agent token usage is above the example hourly budget
+          description: More than 500k tokens were reported in an hour. Change the threshold to the account budget before paging on it.
+
+      - alert: GuardrailBlockSpike
+        expr: sum(rate(guardrail_blocks_total[5m])) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: The guardrail is blocking requests
+          description: Denials are above 0.2 per second. Split the series by category before treating it as an attack.
+
+      - alert: GuardrailDenyRatio
+        expr: >
+          sum(rate(guardrail_requests_total{decision="deny"}[10m]))
+          / clamp_min(sum(rate(guardrail_requests_total[10m])), 1e-9) > 0.3
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: More than 30 percent of guardrail checks are denials
+          description: A high deny ratio is either an attack or a heuristic that is too tight.
+
+      - alert: AgentToolErrors
+        expr: sum(rate(agent_tool_calls_total{status="error"}[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Tool calls are failing
+          description: kb or tickets is returning errors. The agent does not retry.
+
+      - alert: AgentToolStepLimit
+        expr: increase(agent_tool_steps_exhausted_total[30m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: The agent is hitting the tool-step cap
+          description: The model is not finishing inside the step budget.
+
+      - alert: AgentUpstreamErrors
+        expr: sum(rate(agent_requests_total{status="error"}[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Agent upstream errors are elevated
+          description: Model or guardrail calls are failing. Check egress policy and the guardrail endpoints.

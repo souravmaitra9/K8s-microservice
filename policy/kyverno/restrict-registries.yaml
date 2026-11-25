@@ -1,0 +1,36 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: agent-platform-restrict-registries
+  annotations:
+    policies.kyverno.io/title: Restrict image registries
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Agent platform images must come from this account's GHCR or from ECR.
+      Kind loads local tags; do not enforce this policy on a kind cluster.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: allowed-registries
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaceSelector:
+                matchLabels:
+                  app.kubernetes.io/part-of: agent-platform
+      validate:
+        message: >-
+          Images must match ghcr.io/souravmaitra9/*, public.ecr.aws/*,
+          or an account ECR registry.
+        pattern:
+          spec:
+            containers:
+              - image: "ghcr.io/souravmaitra9/* | public.ecr.aws/* | *.dkr.ecr.*.amazonaws.com/*"
+            =(initContainers):
+              - image: "ghcr.io/souravmaitra9/* | public.ecr.aws/* | *.dkr.ecr.*.amazonaws.com/*"
+            =(ephemeralContainers):
+              - image: "ghcr.io/souravmaitra9/* | public.ecr.aws/* | *.dkr.ecr.*.amazonaws.com/*"

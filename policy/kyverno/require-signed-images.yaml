@@ -1,0 +1,56 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: agent-platform-require-signed-images
+  annotations:
+    policies.kyverno.io/title: Verify image signatures
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Audit mode. The public key below is an example attestor committed so
+      the policy has a concrete shape. It is not a production trust root:
+      replace it with the key that signs releases, then set
+      validationFailureAction to Enforce. The matching private key is not
+      in this repository.
+spec:
+  validationFailureAction: Audit
+  background: false
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: verify-cosign
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaceSelector:
+                matchLabels:
+                  app.kubernetes.io/part-of: agent-platform
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/souravmaitra9/*"
+          attestors:
+            - count: 1
+              entries:
+                - keys:
+                    publicKeys: |-
+                      -----BEGIN PUBLIC KEY-----
+                      MCowBQYDK2VwAyEAWtXaYFN34HPClUTDvtFJOqv4Nu/CMF6Pcj68F2THY3M=
+                      -----END PUBLIC KEY-----
+    - name: prefer-digest
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaceSelector:
+                matchLabels:
+                  app.kubernetes.io/part-of: agent-platform
+      validate:
+        message: Images should be pinned by digest (@sha256:).
+        pattern:
+          spec:
+            containers:
+              - image: "*@sha256:*"
+            =(initContainers):
+              - image: "*@sha256:*"

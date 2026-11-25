@@ -1,0 +1,117 @@
+replicaCount: 2
+
+image:
+  registry: ghcr.io/souravmaitra9
+  pullPolicy: IfNotPresent
+  tag: "0.1.0"
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+components:
+  guardrail:
+    repository: agent-platform-guardrail
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  agent:
+    repository: agent-platform-agent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 192Mi
+      limits:
+        cpu: 1000m
+        memory: 512Mi
+  kb:
+    repository: agent-platform-kb
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 128Mi
+  tickets:
+    repository: agent-platform-tickets
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 128Mi
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  components:
+    - guardrail
+    - agent
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  labels: {}
+
+prometheusRule:
+  enabled: false
+  labels: {}
+
+ingress:
+  enabled: false
+  className: nginx
+  host: agent.internal.example.com
+  annotations: {}
+
+llm:
+  baseUrl: ""
+  model: local
+  existingSecret: ""
+  secretKey: token
+  # Destinations the agent may reach when a real model endpoint is set.
+  # Leave both empty for the stub. Do not open 0.0.0.0/0.
+  egressCIDRs: []
+  egressNamespaceLabel: ""
+  egressNamespace: ""
+  egressPort: 443
+
+guardrail:
+  maxBodyBytes: 32768
+  injectionThreshold: "0.8"
+  allowedTools: kb_search,ticket_create
+
+agent:
+  maxToolSteps: 3
+
+networkPolicy:
+  enabled: true
+  ingressNamespaceLabel: agent-platform.io/ingress
+  metricsNamespaceLabel: agent-platform.io/metrics

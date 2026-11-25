@@ -1,0 +1,17 @@
+{{- if .Values.pdb.enabled }}
+{{- range $name, $component := .Values.components }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "agent-platform.fullname" $ }}-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "agent-platform.labels" (dict "root" $ "name" $name) | nindent 4 }}
+spec:
+  minAvailable: {{ $.Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "agent-platform.selector" (dict "root" $ "name" $name) | nindent 6 }}
+{{- end }}
+{{- end }}
