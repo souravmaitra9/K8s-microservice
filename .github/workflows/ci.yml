@@ -65,13 +65,23 @@ jobs:
           curl -fsSL -o tflint.zip https://github.com/terraform-linters/tflint/releases/download/v0.54.0/tflint_linux_amd64.zip
           sudo unzip -o tflint.zip -d /usr/local/bin
       - name: Format, validate, and lint
+        env:
+          # tflint --init downloads plugins through the GitHub API. The
+          # unauthenticated runner IP is shared and hits the rate limit.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           terraform fmt -check -recursive terraform
           terraform -chdir=terraform/envs/example init -backend=false -input=false
           terraform -chdir=terraform/envs/example validate
           terraform -chdir=terraform/envs/aks-example init -backend=false -input=false
           terraform -chdir=terraform/envs/aks-example validate
-          tflint --init
+          for attempt in 1 2 3; do
+            tflint --init && break
+            if [ "$attempt" = 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 15))
+          done
           tflint --chdir terraform/modules/eks
           tflint --chdir terraform/envs/example
           tflint --chdir terraform/modules/aks
