@@ -1,0 +1,55 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: agent-platform-disallow-privileged
+  annotations:
+    policies.kyverno.io/title: Disallow privileged pods
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Pods in the agent platform namespace cannot use host namespaces,
+      privileged mode, or privilege escalation. The chart already sets these
+      fields; this policy stops a later change from relaxing them.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: restricted-pods
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaceSelector:
+                matchLabels:
+                  app.kubernetes.io/part-of: agent-platform
+      validate:
+        message: >-
+          Privileged mode, privilege escalation, host namespaces, and added
+          capabilities are not allowed.
+        pattern:
+          spec:
+            =(hostNetwork): false
+            =(hostPID): false
+            =(hostIPC): false
+            containers:
+              - securityContext:
+                  allowPrivilegeEscalation: false
+                  =(privileged): false
+                  capabilities:
+                    drop:
+                      - ALL
+            =(initContainers):
+              - securityContext:
+                  allowPrivilegeEscalation: false
+                  =(privileged): false
+                  capabilities:
+                    drop:
+                      - ALL
+            =(ephemeralContainers):
+              - securityContext:
+                  allowPrivilegeEscalation: false
+                  =(privileged): false
+                  capabilities:
+                    drop:
+                      - ALL

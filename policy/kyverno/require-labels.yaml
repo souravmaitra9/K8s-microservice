@@ -1,0 +1,33 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: agent-platform-require-labels
+  annotations:
+    policies.kyverno.io/title: Require platform labels
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Pods need app.kubernetes.io/name and app.kubernetes.io/part-of so
+      network policy, Falco, and the chart selector stay aligned.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: required-labels
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaceSelector:
+                matchLabels:
+                  app.kubernetes.io/part-of: agent-platform
+      validate:
+        message: >-
+          Pods require app.kubernetes.io/name and
+          app.kubernetes.io/part-of=agent-platform.
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/name: "?*"
+              app.kubernetes.io/part-of: agent-platform
